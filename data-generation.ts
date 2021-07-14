@@ -5,43 +5,48 @@ import parse from 'https://deno.land/x/date_fns@v2.22.1/parse/index.js'
  * encodes the data in a more regular form.
  */
 
-async function readLines(source: string) {
-  const sourceData = await Deno.readTextFile(source)
-  return sourceData.trim().split('\n')
-}
-
 interface SightingsData {
   species: string
   quant?: string
   location: string
   date: string
-  time: string
+  time?: string
   spotter: string
 }
 
-function parseLine(line: string): SightingsData | undefined {
-  const match = line.match(/(?<species>[^\(]*)(\(x(?<quant>[0-9]+)\))? - (?<location>[^0-9]*)( at (?<time>.*))? on (?<date>.*) by (?<spotter>.*)/)
+const LINE_MATCHER = /(?<species>[^\(]*)(\(x(?<quant>[0-9]+)\))? - (?<location>[^0-9]*)( at (?<time>.*))? on (?<date>.*) by (?<spotter>.*)/
 
-  return match?.groups as (SightingsData | undefined)
+async function readLines(source: string) {
+  const sourceData = await Deno.readTextFile(source)
+  return sourceData.trim().split('\n')
+}
+
+function parseLine(line: string): SightingsData | undefined {
+  return line.match(LINE_MATCHER)?.groups as (SightingsData | undefined)
 }
 
 function asData(data: SightingsData) {
   return {
-    species: data.species,
+    species: data.species.trim(),
     quantity: parseInt(data.quant || '1'),
-    location: data.location,
-    spotter: data.spotter,
+    location: data.location.trim(),
+    spotter: data.spotter.trim(),
     date: parse(data.date, 'd LLLL yyyy', new Date(), {}),
     time: data.time
   }
 }
 
 readLines('./sightings-data.txt')
-  .then(lines => {
+  .then(async lines => {
     const sightingsJson = lines.map(line => {
       const data = parseLine(line)
       return data ? asData(data) : `Unparsed: ${line}`
     })
 
-    Deno.writeTextFile('./sightings-data.json', JSON.stringify(sightingsJson, null, 2))
+    await Deno.writeTextFile(
+      './sightings-data.json',
+      JSON.stringify(sightingsJson, null, 2)
+    )
+
+    console.log('Success.')
   })
